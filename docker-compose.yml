@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: nosugar_postgres
+    environment:
+      POSTGRES_DB: nosugar_bot
+      POSTGRES_USER: bot_user
+      POSTGRES_PASSWORD: bot_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot_user -d nosugar_bot"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  bot:
+    build: .
+    container_name: nosugar_bot
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bot_user:bot_password@postgres:5432/nosugar_bot
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - PAYMENT_CARD_NUMBER=${PAYMENT_CARD_NUMBER}
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data: 
