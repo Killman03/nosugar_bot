@@ -48,6 +48,13 @@ async def lifespan():
     logger.info("Bot started successfully")
     yield
     
+    # Stop scheduler
+    try:
+        await container.scheduler_service.stop_scheduler()
+        logger.info("Scheduler stopped successfully")
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler: {e}")
+    
     logger.info("Bot stopped")
 
 
@@ -76,6 +83,16 @@ async def main():
     
     # Set up lifespan
     container.dispatcher.lifespan = lifespan
+    
+    # Setup scheduler after container is fully initialized
+    try:
+        scheduler = container.scheduler_service
+        scheduler.set_bot(container.bot)
+        # Start scheduler in background
+        asyncio.create_task(scheduler.start_scheduler())
+        logger.info("Daily reminder scheduler started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
     
     # Start polling
     try:

@@ -5,6 +5,7 @@ from datetime import datetime
 
 from handlers.base import BaseHandler
 from di.dependencies import get_session
+from services.user_state_service import UserState
 
 
 class CheckInHandler(BaseHandler):
@@ -14,6 +15,7 @@ class CheckInHandler(BaseHandler):
         super().__init__()
         self.router.callback_query.register(self.handle_checkin, F.data.startswith("checkin_"))
         self.router.callback_query.register(self.handle_challenge, F.data == "challenge_complete")
+        self.router.callback_query.register(self.handle_slip_analysis, F.data == "slip_analysis")
     
     async def handle_checkin(self, callback: CallbackQuery):
         """Handle check-in button clicks."""
@@ -47,8 +49,12 @@ class CheckInHandler(BaseHandler):
         old_streak = user.current_streak
         await checkin_repo.update_streak(user.id, True)
         
-        # Get updated user
-        user = await self.get_user(session, callback.from_user.id)
+        # Refresh user object to get updated data
+        await session.refresh(user)
+        
+        # Debug: log streak update
+        from loguru import logger
+        logger.info(f"User {user.user_id} streak updated: {old_streak} -> {user.current_streak}, longest: {user.longest_streak}")
         
         # Get motivation message
         motivation_service = self.get_motivation_service()
@@ -83,8 +89,8 @@ class CheckInHandler(BaseHandler):
         # Update user streak
         await checkin_repo.update_streak(user.id, False)
         
-        # Get updated user
-        user = await self.get_user(session, callback.from_user.id)
+        # Refresh user object to get updated data
+        await session.refresh(user)
         
         # Get slip-up message and payment reminder
         motivation_service = self.get_motivation_service()
@@ -100,7 +106,14 @@ class CheckInHandler(BaseHandler):
             f"💪 Завтра новый день! Начни заново!"
         )
         
-        keyboard = self.get_back_keyboard()
+        keyboard = [
+            [
+                InlineKeyboardButton(text="📝 Анализ срыва", callback_data="slip_analysis"),
+                InlineKeyboardButton(text="💪 Мотивация", callback_data="menu_motivation")
+            ],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+        ]
+        
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     
     async def handle_challenge(self, callback: CallbackQuery):
@@ -122,6 +135,34 @@ class CheckInHandler(BaseHandler):
                 await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
             else:
                 await callback.answer("Челлендж уже выполнен или не найден!")
+            
+            await callback.answer()
+    
+    async def handle_slip_analysis(self, callback: CallbackQuery):
+        """Handle slip analysis request."""
+        async for session in get_session():
+            user = await self.get_user(session, callback.from_user.id)
+            
+            # Set user state to waiting for slip analysis
+            user_state_service = self.get_user_state_service()
+            user_state_service.set_user_state(callback.from_user.id, UserState.WAITING_FOR_SLIP_ANALYSIS)
+            
+            text = (
+                "📝 <b>Анализ срыва</b>\n\n"
+                "Помоги себе стать сильнее! Напиши:\n\n"
+                "🔍 <b>Причины срыва:</b>\n"
+                "• Что привело к срыву?\n"
+                "• Какие эмоции ты испытывал?\n"
+                "• Что происходило вокруг?\n\n"
+                "💡 <b>План на будущее:</b>\n"
+                "• Как избежать такой ситуации?\n"
+                "• Что можно сделать по-другому?\n"
+                "• Какие альтернативы использовать?\n\n"
+                "Просто напиши свой анализ в следующем сообщении."
+            )
+            
+            keyboard = [[InlineKeyboardButton(text="🔙 Отмена", callback_data="menu_back")]]
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
             
             await callback.answer()
     

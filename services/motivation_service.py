@@ -67,6 +67,17 @@ class MotivationService:
         """Get a random daily motivation message."""
         return random.choice(self.daily_motivations)
     
+    async def get_ai_motivation(self, streak_days: int) -> str:
+        """Get AI-generated motivation message."""
+        try:
+            from services.ai_service import AIService
+            ai_service = AIService()
+            return await ai_service.generate_motivation(streak_days)
+        except Exception as e:
+            from loguru import logger
+            logger.error(f"Error getting AI motivation: {e}")
+            return self.get_daily_motivation()
+    
     def get_random_challenge(self) -> str:
         """Get a random daily challenge."""
         return random.choice(self.challenges)

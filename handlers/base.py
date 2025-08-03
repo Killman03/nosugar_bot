@@ -8,6 +8,7 @@ from di.dependencies import (
     get_session,
     get_motivation_service,
     get_recipe_service,
+    get_ai_service,
     get_user_repository,
     get_checkin_repository,
     get_note_repository,
@@ -17,6 +18,7 @@ from di.dependencies import (
 from database.repository import UserRepository, CheckInRepository, NoteRepository, ChallengeRepository, RecipeRepository
 from services.motivation_service import MotivationService
 from services.recipe_service import RecipeService
+from services.ai_service import AIService
 
 
 class BaseHandler:
@@ -54,9 +56,22 @@ class BaseHandler:
             # Import StartHandler to get main menu keyboard
             from handlers.start import StartHandler
             start_handler = StartHandler()
-            keyboard = start_handler.get_main_menu_keyboard()
+            inline_keyboard = start_handler.get_main_menu_keyboard()
+            reply_keyboard = start_handler.get_reply_keyboard()
             
-            await callback.message.edit_text(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+            # For edit_text we can only use InlineKeyboardMarkup
+            await callback.message.edit_text(
+                welcome_text, 
+                reply_markup=inline_keyboard,
+                parse_mode="HTML"
+            )
+            
+            # Send reply keyboard as separate message
+            await callback.message.answer(
+                "Используй кнопку /start для возврата в главное меню:",
+                reply_markup=reply_keyboard
+            )
+            
             await callback.answer()
     
     async def get_user(self, session: AsyncSession, telegram_user_id: int):
@@ -92,4 +107,13 @@ class BaseHandler:
     
     def get_recipe_service(self) -> RecipeService:
         """Get recipe service instance."""
-        return get_recipe_service() 
+        return get_recipe_service()
+    
+    def get_ai_service(self) -> AIService:
+        """Get AI service instance."""
+        return get_ai_service()
+    
+    def get_user_state_service(self):
+        """Get user state service from container."""
+        from di.container import container
+        return container.user_state_service 

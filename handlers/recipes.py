@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from handlers.base import BaseHandler
 from di.dependencies import get_session
+from services.user_state_service import UserState
 
 
 class RecipesHandler(BaseHandler):
@@ -26,14 +27,40 @@ class RecipesHandler(BaseHandler):
             action = callback.data.split("_")[1]
             
             if action == "create":
-                await self.start_recipe_creation(callback.message, session)
+                await self.start_recipe_creation_from_callback(callback, session)
             elif action == "list":
                 await self.show_recipes_list(callback, session)
             
             await callback.answer()
     
+    async def start_recipe_creation_from_callback(self, callback: CallbackQuery, session: AsyncSession):
+        """Start recipe creation process from callback."""
+        # Set user as waiting for recipe ingredients
+        user_state_service = self.get_user_state_service()
+        user_id = callback.from_user.id
+        user_state_service.set_user_state(user_id, UserState.WAITING_FOR_RECIPE_INGREDIENTS)
+        
+        # Debug: log state setting
+        from loguru import logger
+        logger.info(f"Set user {user_id} state to WAITING_FOR_RECIPE_INGREDIENTS")
+        
+        text = (
+            "🍳 <b>Создание рецепта без сахара</b>\n\n"
+            "Напиши ингредиенты, которые у тебя есть, и я создам для тебя "
+            "вкусный рецепт без сахара!\n\n"
+            "Например: яблоки, овсянка, корица, мед\n\n"
+            "Просто напиши сообщение с ингредиентами."
+        )
+        
+        keyboard = [[InlineKeyboardButton(text="🔙 Отмена", callback_data="menu_back")]]
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    
     async def start_recipe_creation(self, message: Message, session: AsyncSession):
         """Start recipe creation process."""
+        # Set user as waiting for recipe ingredients
+        user_state_service = self.get_user_state_service()
+        user_state_service.set_user_state(message.from_user.id, UserState.WAITING_FOR_RECIPE_INGREDIENTS)
+        
         text = (
             "🍳 <b>Создание рецепта без сахара</b>\n\n"
             "Напиши ингредиенты, которые у тебя есть, и я создам для тебя "
@@ -62,4 +89,9 @@ class RecipesHandler(BaseHandler):
             text = "🍳 У тебя пока нет сохраненных рецептов.\n\nСоздай первый рецепт, чтобы начать готовить без сахара!"
         
         keyboard = [[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]]
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML") 
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    
+    def get_user_state_service(self):
+        """Get user state service from container."""
+        from di.container import container
+        return container.user_state_service 

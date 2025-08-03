@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from handlers.base import BaseHandler
 from di.dependencies import get_session
+from services.user_state_service import UserState
 
 
 class NotesHandler(BaseHandler):
@@ -26,14 +27,39 @@ class NotesHandler(BaseHandler):
             action = callback.data.split("_")[1]
             
             if action == "create":
-                await self.start_note_creation(callback.message, session)
+                await self.start_note_creation_from_callback(callback, session)
             elif action == "list":
                 await self.show_notes_list(callback, session)
             
             await callback.answer()
     
+    async def start_note_creation_from_callback(self, callback: CallbackQuery, session: AsyncSession):
+        """Start note creation process from callback."""
+        # Set user as waiting for note content
+        user_state_service = self.get_user_state_service()
+        user_id = callback.from_user.id
+        user_state_service.set_user_state(user_id, UserState.WAITING_FOR_NOTE_CONTENT)
+        
+        # Debug: log state setting
+        from loguru import logger
+        logger.info(f"Set user {user_id} state to WAITING_FOR_NOTE_CONTENT")
+        
+        text = (
+            "📝 <b>Создание новой заметки</b>\n\n"
+            "Напиши свои мысли, чувства или достижения за сегодня.\n"
+            "Это поможет тебе отслеживать свой прогресс!\n\n"
+            "Просто напиши сообщение с текстом заметки."
+        )
+        
+        keyboard = [[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]]
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    
     async def start_note_creation(self, message: Message, session: AsyncSession):
         """Start note creation process."""
+        # Set user as waiting for note content
+        user_state_service = self.get_user_state_service()
+        user_state_service.set_user_state(message.from_user.id, UserState.WAITING_FOR_NOTE_CONTENT)
+        
         text = (
             "📝 <b>Создание новой заметки</b>\n\n"
             "Напиши свои мысли, чувства или достижения за сегодня.\n"
@@ -60,4 +86,9 @@ class NotesHandler(BaseHandler):
             text = "📝 У тебя пока нет заметок.\n\nСоздай первую заметку, чтобы начать вести дневник!"
         
         keyboard = [[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]]
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML") 
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    
+    def get_user_state_service(self):
+        """Get user state service from container."""
+        from di.container import container
+        return container.user_state_service 

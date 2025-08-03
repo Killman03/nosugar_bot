@@ -88,6 +88,9 @@ class CheckInRepository:
         """Update user streak based on check-in result."""
         user = await self.session.get(User, user_id)
         if user:
+            old_current = user.current_streak
+            old_longest = user.longest_streak
+            
             if success:
                 user.current_streak += 1
                 user.longest_streak = max(user.longest_streak, user.current_streak)
@@ -98,8 +101,11 @@ class CheckInRepository:
             if not success:
                 user.total_slip_ups += 1
             
-            user.updated_at = datetime.utcnow()
             await self.session.commit()
+            
+            # Debug: log streak update
+            from loguru import logger
+            logger.info(f"Updated user {user_id} streak: current {old_current}->{user.current_streak}, longest {old_longest}->{user.longest_streak}")
     
     async def get_user_stats(self, user_id: int) -> dict:
         """Get user statistics."""

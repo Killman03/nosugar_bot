@@ -11,6 +11,7 @@ from database.repository import (
 )
 from services.motivation_service import MotivationService
 from services.recipe_service import RecipeService
+from services.ai_service import AIService
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -27,6 +28,11 @@ def get_motivation_service() -> MotivationService:
 def get_recipe_service() -> RecipeService:
     """Get recipe service dependency."""
     return container.recipe_service
+
+
+def get_ai_service() -> AIService:
+    """Get AI service dependency."""
+    return container.ai_service
 
 
 def get_user_repository(session: AsyncSession) -> UserRepository:

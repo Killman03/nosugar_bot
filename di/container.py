@@ -13,6 +13,9 @@ from database.repository import (
 )
 from services.motivation_service import MotivationService
 from services.recipe_service import RecipeService
+from services.ai_service import AIService
+from services.user_state_service import UserStateService
+from services.scheduler_service import scheduler_service
 
 
 class Container:
@@ -27,6 +30,9 @@ class Container:
         # Services
         self._motivation_service: MotivationService | None = None
         self._recipe_service: RecipeService | None = None
+        self._ai_service: AIService | None = None
+        self._user_state_service: UserStateService | None = None
+        self._scheduler_service = scheduler_service
     
     @property
     def bot(self) -> Bot:
@@ -69,6 +75,25 @@ class Container:
         if self._recipe_service is None:
             self._recipe_service = RecipeService()
         return self._recipe_service
+    
+    @property
+    def ai_service(self) -> AIService:
+        """Get AI service instance."""
+        if self._ai_service is None:
+            self._ai_service = AIService()
+        return self._ai_service
+    
+    @property
+    def user_state_service(self) -> UserStateService:
+        """Get user state service instance."""
+        if self._user_state_service is None:
+            self._user_state_service = UserStateService()
+        return self._user_state_service
+    
+    @property
+    def scheduler_service(self):
+        """Get scheduler service instance."""
+        return self._scheduler_service
     
     def setup(self, bot: Bot, session_maker: async_sessionmaker):
         """Setup container with bot and session maker."""
